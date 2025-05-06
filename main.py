@@ -24,3 +24,20 @@ def get_recipe(recipe_id: str) -> Dict:
     if recipe:
         return dict(recipe)
     return {"error": "Recipe not found"}
+
+
+@app.get("/recipes/search_exact")
+def search_recipes_exact(ingredients: str):
+    allowed_ingredients = set([i.strip().lower() for i in ingredients.split(",")])
+
+    conn = get_db_connection()
+    recipes = conn.execute("SELECT * FROM recipeTable").fetchall()
+    conn.close()
+
+    matching_recipes = []
+    for row in recipes:
+        recipe_ingredients = set(i.strip().lower() for i in row["ingredient"].split(","))
+        if recipe_ingredients.issubset(allowed_ingredients):
+            matching_recipes.append(dict(row))
+
+    return matching_recipes
