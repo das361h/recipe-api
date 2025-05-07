@@ -1,53 +1,53 @@
-# main.py
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
 from typing import List
-import json
 
 app = FastAPI()
 
-# Allow requests from Android apps
+# CORS settings for Android
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with specific origin for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# SQLite connection
-def get_db_connection():
-    conn = sqlite3.connect("w2c.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+DB_PATH = "w2c.db"
 
-# Route to get recipes using only specified ingredients
-@app.get("/recipes/search")
-def search_recipes(ingredients: str = Query(...)):
-    user_ingredients = set(i.strip().lower() for i in ingredients.split(",") if i.strip())
-    conn = get_db_connection()
+@app.get("/recipes/by-ingredients/")
+def get_recipes_by_ingredients(ingredients: List[str] = Query(...)):
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    query = "SELECT * FROM recipedb"
-    cursor.execute(query)
+    # Get all recipes
+    cursor.execute("SELECT * FROM recipedb")
     all_recipes = cursor.fetchall()
 
     result = []
-
     for row in all_recipes:
-        db_ingredients = set(i.strip().lower() for i in row["ringred"].split(",") if i.strip())
+        rid, rname, ringred, rtype, rcuisine, roveralltime, rstep = row
+        # Normalize ingredients
+        recipe_ingredients = set(map(str.strip, ringred.lower().split(',')))
+        input_ingredients = set(map(str.strip, map(str.lower, ingredients)))
 
-        if db_ingredients.issubset(user_ingredients):
+        # Check if all recipe ingredients are within the user input
+        if recipe_ingredients.issubset(input_ingredients):
+            # Fetch image from imagedb
+            cursor.execute("SELECT imgurl FROM imagedb WHERE imgid=?", (rid,))
+            img_row = cursor.fetchone()
+            imgurl = img_row[0] if img_row else ""
+
             result.append({
-                "rid": row["rid"],
-                "rname": row["rname"],
-                "ringred": row["ringred"],
-                "rtype": row["rtype"],
-                "rcuisine": row["rcuisine"],
-                "roveralltime": row["roveralltime"],
-                "rstep": row["rstep"],
-                "imgurl": row["imgurl"]
+                "rid": rid,
+                "rname": rname,
+                "ringred": ringred,
+                "rtype": rtype,
+                "rcuisine": rcuisine,
+                "roveralltime": roveralltime,
+                "rstep": rstep,
+                "imgurl": imgurl
             })
 
     conn.close()
