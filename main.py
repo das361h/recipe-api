@@ -29,7 +29,7 @@ def search_recipes(ingredients: str = Query(...)):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    query = "SELECT * FROM recipes"
+    query = "SELECT * FROM recipedb"
     cursor.execute(query)
     all_recipes = cursor.fetchall()
 
