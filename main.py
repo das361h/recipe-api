@@ -1,43 +1,54 @@
-from fastapi import FastAPI
+# main.py
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
-from typing import List, Dict
+from typing import List
+import json
 
 app = FastAPI()
 
+# Allow requests from Android apps
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace with specific origin for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# SQLite connection
 def get_db_connection():
     conn = sqlite3.connect("w2c.db")
     conn.row_factory = sqlite3.Row
     return conn
 
-@app.get("/recipes")
-def get_all_recipes() -> List[Dict]:
+# Route to get recipes using only specified ingredients
+@app.get("/recipes/search")
+def search_recipes(ingredients: str = Query(...)):
+    user_ingredients = set(i.strip().lower() for i in ingredients.split(",") if i.strip())
     conn = get_db_connection()
-    recipes = conn.execute("SELECT * FROM recipeTable").fetchall()
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM recipes"
+    cursor.execute(query)
+    all_recipes = cursor.fetchall()
+
+    result = []
+
+    for row in all_recipes:
+        db_ingredients = set(i.strip().lower() for i in row["ringred"].split(",") if i.strip())
+
+        if db_ingredients.issubset(user_ingredients):
+            result.append({
+                "rid": row["rid"],
+                "rname": row["rname"],
+                "ringred": row["ringred"],
+                "rtype": row["rtype"],
+                "rcuisine": row["rcuisine"],
+                "roveralltime": row["roveralltime"],
+                "rstep": row["rstep"],
+                "imgurl": row["imgurl"]
+            })
+
     conn.close()
-    return [dict(row) for row in recipes]
-
-@app.get("/recipes/{recipe_id}")
-def get_recipe(recipe_id: str) -> Dict:
-    conn = get_db_connection()
-    recipe = conn.execute("SELECT * FROM recipeTable WHERE id = ?", (recipe_id,)).fetchone()
-    conn.close()
-    if recipe:
-        return dict(recipe)
-    return {"error": "Recipe not found"}
-
-
-@app.get("/recipes/search_exact")
-def search_recipes_exact(ingredients: str):
-    allowed_ingredients = set([i.strip().lower() for i in ingredients.split(",")])
-
-    conn = get_db_connection()
-    recipes = conn.execute("SELECT * FROM recipeTable").fetchall()
-    conn.close()
-
-    matching_recipes = []
-    for row in recipes:
-        recipe_ingredients = set(i.strip().lower() for i in row["ingredient"].split(","))
-        if recipe_ingredients.issubset(allowed_ingredients):
-            matching_recipes.append(dict(row))
-
-    return matching_recipes
+    return result
